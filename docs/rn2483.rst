@@ -1,0 +1,129 @@
+.. module:: rn2483
+
+******
+rn2483
+******
+
+
+The RN2483 is a fully-certified 433/868 MHz module based on wireless LoRa technology.  
+The RN2483 utilizes a unique spread spectrum modulation within the Sub-GHz band to enable long range, low power, and high network capacity.
+
+The module's embedded LoRaWAN Class A protocol enables seamless connectivity to any LoRaWAN compliant network 
+infrastructure, whether public or privately deployed.  The module is specifically designed for ease of use, which shortens 
+development time and speeds time to market.  LoRa technology is ideal for battery-operated sensors and low power 
+applications such as IoT, M2M, Smart City, Sensor networks, Industrial automation, and more.
+
+The RN2483 is the first LoRa module to pass LoRa Alliance Certification testing.  It is certified to the LoRaWAN 1.0 
+specification, ensuring that designers can quickly and easily integrate their end devices into any LoRaWAN network.
+
+This Zerynth module currently supports over-the-air activation only to join a LoRaWAN network.
+Class A LoRaWAN devices, after correctly joining a network,
+are able to transmit a message up to 222 bytes and receive a response up to 230 bytes.
+during the subsequent downlink session.
+Sent messages can be confirmed (acknowledged) or unconfirmed; check your network policy to
+choose the proper transmit method.
+
+*rn2483Exception* is defined.
+
+Usage example: ::
+
+    import streams
+    from microchip.rn2483 import rn2483
+
+    streams.serial()
+
+    rst = D16
+    # insert otaa credentials!!
+    appeui = "" 
+    appkey = ""
+    print("joining...")
+
+    if not rn2483.init(SERIAL1, appeui, appkey, rst):
+        print("denied :(")
+        raise Exception
+
+    print("sending first message, res:")
+    print(rn2483.tx_uncnf('TTN'))
+
+    while True:
+        print("ping, res:")
+        print(rn2483.tx_uncnf("."))
+        sleep(5000)
+
+
+    
+.. function:: get_hweui(ser = None, rst = None)
+
+    Get device EUI.
+    If you need to get the EUI before joining a network, it is possible to specify:
+        * *ser* serial port used for board-to-module communication (ex. SERIAL1)
+        * *rst* module reset pin
+    And call get_hweui() before init().
+
+    
+.. function:: get_ch_status(channel)
+
+    Get *channel* channel status: on if enabled, off otherwise.
+
+    
+.. function:: get_duty_cycle(channel, raw = False)
+
+    Get *channel* channel duty cycle: returned by default as a percentage.
+    As a raw value passing *raw* as True.
+
+    
+.. function:: get_ar()
+
+    Get current automatic reply state ('on' or 'off').
+    Automatic reply state is stored in *ar* global variable.
+
+    
+.. function:: set_ar(state)
+
+    Set automatic reply to 'on' or 'off' state.
+    Currently setting ar to 'on' does not have consequences on downlink session.
+
+    
+.. function:: set_retransmissions(n)
+
+    Set number of retransmissions to be used for an uplink confirmed packet,
+    if no downlink acknoledgement is received from the server.
+
+    
+.. function:: init(ser, appeui, appkey, rst)
+
+    Perform basic module configuration and try over-the-air activation.
+    *ser* is the serial port used for board-to-module communication (ex. SERIAL1)
+    *appeui*, *appkey* are needed for otaa
+    *rst* is the module reset pin
+
+    
+.. function:: tx_uncnf(data)
+
+    Transmit an unconfirmed message.
+    *data* is a string or a bytearray.
+
+    Return True if no data is available during downlink session,
+    a tuple (True, resp_data), where *resp_data* is a bytearray, otherwise.
+
+    
+.. function:: tx_cnf(data)
+
+    Transmit a confirmed message.
+    *data* is a string or a bytearray.
+
+    Return True if no data is available during downlink session,
+    a tuple (True, resp_data), where *resp_data* is a bytearray, otherwise.
+
+    
+.. function:: get_snr():
+    
+    Returns an integer between -128 and 127 representing the signal to noise ratio (SNR) for the last received packet.
+
+    
+.. function:: get_pwr():
+    
+    Returns an integer between -3 and 15 representing the current power level settings used in operation.
+
+    
+
