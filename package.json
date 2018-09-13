@@ -1,5 +1,7 @@
 {
-    "dependencies": {},
+    "dependencies": {
+        "core.zerynth.stdlib": "r2.1.2"
+    },
     "description": "Driver for Microchip RN2483 Lora chip",
     "fullname": "lib.microchip.rn2483",
     "git_pointer": "zerynth://zerynth-libs/microchip-rn2483",

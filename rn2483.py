@@ -8,7 +8,7 @@
 #
 # @Date:   2017-05-17 09:08:48
 # @Last Modified by:   andreabau
-# @Last Modified time: 2017-07-14 08:43:22
+# @Last Modified time: 2018-09-04 17:34:58
 """
 .. module:: rn2483
 
@@ -16,7 +16,13 @@
 RN2483 Module
 *************
 
-This Zerynth module currently supports over-the-air activation only to join a LoRaWAN network. Class A LoRaWAN devices, after correctly joining a network, are able to transmit a message up to 222 bytes and receive a response up to 230 bytes. during the subsequent downlink session. Sent messages can be confirmed (acknowledged) or unconfirmed; check your network policy to choose the proper transmit method (`datasheet <http://ww1.microchip.com/downloads/en/DeviceDoc/50002346A.pdf>`_)
+This Zerynth module currently supports over-the-air activation only to join a LoRaWAN network.
+Class A LoRaWAN devices, after correctly joining a network, are able to transmit a message up to 222 bytes
+and receive a response up to 230 bytes during the subsequent downlink session.
+Sent messages can be confirmed (acknowledged) or unconfirmed; check your network policy to choose the proper 
+transmit method (`datasheet <http://ww1.microchip.com/downloads/en/DeviceDoc/50002346A.pdf>`_,
+`command reference <http://ww1.microchip.com/downloads/en/DeviceDoc/40001784B.pdf>`_,
+`LoRaWAN specification <https://lora-alliance.org/sites/default/files/2018-04/lorawantm_specification_-v1.1.pdf>`_)
 
 .. note:: **rn2483Exception** is defined.
 
@@ -50,6 +56,7 @@ Usage example: ::
 
 import streams
 import timers
+import gpio
 
 new_exception(rn2483Exception, Exception)
 
@@ -58,7 +65,11 @@ _appeui = None
 _appkey = None
 _deveui  = None
 
-ar = None
+_pwridx = None
+_adr = None
+_rx2 = None
+_retx = None
+_ar = None
 
 RESP_TIMEOUT = -1
 
@@ -77,6 +88,7 @@ def _read(timeout = 2000):
     while not _ser.available():
         if t.get() > timeout:
             return RESP_TIMEOUT
+        sleep(2)
     return _ser.readline().strip('\r\n')
 
 def get_hweui(ser = None, rst = None):
@@ -85,9 +97,11 @@ def get_hweui(ser = None, rst = None):
 
     Gets device EUI.
     If you need to get the EUI before joining a network, it is possible to specify:
-        * *ser* serial port used for device-to-module communication (ex. SERIAL1)
-        * *rst* module reset pin
-    And call get_hweui() before init().
+    
+    * *ser* serial port used for device-to-module communication (ex. SERIAL1)
+    * *rst* module reset pin
+    
+    and call get_hweui() before init().
 
     """
     if ser is not None:
@@ -99,7 +113,7 @@ def get_ch_status(channel):
     """
 .. function:: get_ch_status(channel)
 
-    Gets *channel* channel status: on if enabled, off otherwise.
+    Gets *channel* channel status: 'on' if enabled, 'off' otherwise.
 
     """
     _send('mac get ch status ' + str(channel))
@@ -125,12 +139,11 @@ def get_ar():
 .. function:: get_ar()
 
     Gets current automatic reply state ('on' or 'off').
-    Automatic reply state is stored in *ar* global variable.
 
     """
-    global ar
+    global _ar
     _send('mac get ar')
-    ar = _read()
+    _ar = _read()
 
 def set_ar(state):
     """
@@ -140,11 +153,11 @@ def set_ar(state):
     Currently setting ar to 'on' does not have consequences on downlink session.
 
     """
-    global ar
+    global _ar
     _send('mac set ar ' + state, discard_resp = True)
     _send('mac get ar')
-    ar = _read()
-    if ar != state:
+    _ar = _read()
+    if _ar != state:
         raise rn2483Exception
 
 def set_retransmissions(n):
@@ -161,61 +174,89 @@ def set_retransmissions(n):
 
 def _get_startup_msg():
     while not _ser.available():
-        pass
+        sleep(2)
     while _ser.available():
         _read()
 
-def init(ser, appeui, appkey, rst, short_startup = False):
-    """
-.. function:: init(ser, appeui, appkey, rst)
 
-    Performs basic module configuration and try over-the-air activation.
+def config(appeui=None, appkey=None, deveui=None, pwridx='1', adr='off', rx2='3 869525000', retx=5, ar='off'):
+    """
+.. _config:
+
+.. function:: config(appeui=None, appkey=None, deveui=None, pwridx='1', adr='off', rx2='3 869525000', retx=5, ar='off')
+
+    Configures the lora module with otaa join credentials and other parameters.
     
-        * *ser* is the serial port used for device-to-module communication (ex. SERIAL1)
-        * *appeui*, *appkey* are needed for otaa
-        * *rst* is the module reset pin
+    * *appeui*, *appkey* are needed for otaa
+    * *deveui* is needed fot otaa too but if it is None, module's hardware eui will be used for activation
+    * *pwridx* sets the output power
+    * *adr* controls the adaptive data rate
+    * *rx2* data rate and frequency used for the second Receive window
+    * *retx* number of retransmissions to be used for an uplink confirmed packet
+    * *ar* sets the state of the automatic reply
 
     """
-    global _ser, _appeui, _appkey, _deveui
+    global _appeui, _appkey, _deveui, _pwridx, _adr, _rx2, _retx, _ar
+    
+    if _appeui is None:
+        _appeui  = appeui
+    
+    if _appkey is None:
+        _appkey = appkey
+    
+    if _deveui is None:
+        if deveui is None:
+            _deveui  = get_hweui()
+        else:
+            _deveui = deveui
+    
+    _pwridx = '1'
+    _adr = 'off'
+    _rx2 = '3 869525000'
+    _retx = 5
+    _ar = 'off'
 
-    if _ser is None:
+def set_config():
+    """
+.. function:: set_config()
+    
+    Sets the configuration parameters 
+    Configures the lora module with otaa join credentials and other parameters.
+    
+    * *appeui*, *appkey* are needed for otaa
+    * *deveui* is needed fot otaa too but if it is None, module's hardware eui will be used for activation
+    * *pwridx* sets the output power
+    * *adr* controls the adaptive data rate
+    * *rx2* data rate and frequency used for the second Receive window
+    * *retx* number of retransmissions to be used for an uplink confirmed packet
+    * *ar* sets the state of the automatic reply
 
-        pinMode(rst, OUTPUT)
-        digitalWrite(rst, HIGH)
-        sleep(100)
-        digitalWrite(rst, LOW)
-        sleep(100)
-        digitalWrite(rst, HIGH)
+    """
+    _send('mac set appeui ' + _appeui, discard_resp = True)
+    _send('mac set appkey ' + _appkey, discard_resp = True)
+    _send('mac set deveui ' + _deveui, discard_resp = True)
+    _send('mac set pwridx ' + _pwridx, discard_resp = True)
+    _send('mac set adr ' + _adr, discard_resp = True)
+    _send('mac set rx2 ' + _rx2, discard_resp = True)
+    set_retransmissions(_retx)
+    set_ar(_ar)
+    
+    _send('mac save', discard_resp = True)
 
-        _ser = streams.serial(ser, set_default = False, baud = 57600)
-        _get_startup_msg()
 
-        if short_startup:
-            return
+def join():
+    """
+    .. _join:
+    
+.. function:: join()
+    
+    Attempts to join the network using over-the-air activation.
 
-    _appeui  = appeui
-    _appkey = appkey
-    _deveui  = get_hweui()
+    """
 
     _send('mac reset 868', discard_resp = True)
-
-    _send('mac set appeui ' + _appeui, discard_resp = True)
-
-    _send('mac set appkey ' + _appkey, discard_resp = True)
-
-    _send('mac set deveui ' + _deveui, discard_resp = True)
-
-    _send('mac set pwridx 1', discard_resp = True)
-
-    _send('mac set adr off', discard_resp = True)
-
-    _send('mac set rx2 3 869525000', discard_resp = True)
-
-    set_retransmissions(5)
-    get_ar()
-    set_ar('off')
-
-    _send('mac save', discard_resp = True)
+    
+    set_config()
 
     joined = False
 
@@ -231,6 +272,45 @@ def init(ser, appeui, appkey, rst, short_startup = False):
         sleep(1000)
 
     return joined
+
+def init(ser, appeui, appkey, rst, join_lora=True, short_startup = False):
+    """
+.. function:: init(ser, appeui, appkey, rst, join_lora=True)
+
+    Performs basic module configuration and try over-the-air activation.
+    
+    * *ser* is the serial port used for device-to-module communication (ex. SERIAL1)
+    * *appeui*, *appkey* are needed for otaa
+    * *rst* is the module reset pin
+    * if *join_lora* is False the configuration and over-the-air activation attempt are skipped and the module can be configured through the :ref:`config() <config>` function and then the LoRa network can be joined calling the :ref:`join() <join>` function.
+    
+    
+    """
+    global _ser, _appeui, _appkey, _deveui
+    
+    if _ser is None:
+        gpio.mode(rst, OUTPUT)
+        gpio.high(rst)
+        sleep(100)
+        gpio.low(rst)
+        sleep(100)
+        gpio.high(rst)
+
+        _ser = streams.serial(ser, set_default = False, baud = 57600)
+        _get_startup_msg()
+
+        if short_startup:
+            return
+
+    _appeui  = appeui
+    _appkey = appkey
+    
+    if join_lora:
+        config(appeui=appeui, appkey=appkey)
+        joined = join()
+        return joined
+    
+    
 
 def _2str(s):
     r = str(s)
