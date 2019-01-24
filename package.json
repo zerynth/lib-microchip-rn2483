@@ -1,6 +1,6 @@
 {
     "dependencies": {
-        "core.zerynth.stdlib": "r2.1.2"
+        "core.zerynth.stdlib": "r2.2.0"
     },
     "description": "Driver for Microchip RN2483 Lora chip",
     "fullname": "lib.microchip.rn2483",
@@ -18,6 +18,6 @@
     ],
     "repo": "official",
     "title": "Microchip RN2483 LORA solution",
-    "version": "r2.1.2",
+    "version": "r2.2.0",
     "whatsnew": ""
 }
