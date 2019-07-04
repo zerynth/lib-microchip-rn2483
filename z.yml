@@ -1,0 +1,14 @@
+---
+description: Driver for Microchip RN2483 Lora chip
+fullname: lib.microchip.rn2483
+info:
+    chip_manufacturer: Microchip
+    chip_name: RN2483
+    name: Lora Driver
+    type: Connectivity
+keywords:
+- wireless
+- lora
+- microchip
+title: Microchip RN2483 LORA solution
+...
